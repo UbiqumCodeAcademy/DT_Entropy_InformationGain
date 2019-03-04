@@ -1,13 +1,15 @@
 # ---------------------------------- #
 # Decision trees for classification  #
 # Author: Guillem Perdigó            #
-# Version 1 | 02.03.2019             #
+# Version 2 | 04.03.2019             #
 # ---------------------------------- #
 
 # resource1: https://www.youtube.com/watch?v=nodQ2s0CUbI&list=PLBv09BD7ez_4temBw7vLA19p3tdQH6FYO&index=4
 # ressource2: https://www.saedsayad.com/decision_tree.htm
+# ressource3: https://www.r-bloggers.com/id3-classification-using-data-tree/
 
 library(rpart)
+library(ggplot2)
 
 # creating data ####
 mydf <- data.frame(
@@ -31,18 +33,30 @@ mydf <- data.frame(
   # pure set (4 yes / 0 no):
   -(4/4) * log(4/4, base = 2) - (0/4) * log(0/4, base = 2) # Entropy = NaN = 0
 
+# We will write a function for entropy, so it's easier to calculate:
 entropy <- function(p){
-  return(-(p) * log(p, base = 2) - (1-p) * log(1-p, base = 2))
-} 
-
-entropy(1) #0.8112781
+  ifelse(p==0|p==1, 0, -(p) * log(p, base = 2) - (1-p) * log(1-p, base = 2)) # we need to manually set values for p = 0 and p = 1, otherwise we'll get Nan
+}
+  #Checking our function:
+  entropy(0) # pure set = 0
+  entropy(0.5) # 50/50 split set = 1
+  entropy(1) # pure set = 0
+  #Plotting our function:
+  x <- seq(from = 0, to = 1, by = 0.001)
+  entX <- data.frame(
+    x = x,
+    entropyX = entropy(x)
+  )
+  ggplot(data = entX, aes(x, entropyX)) +
+    geom_line()
+  
 
 # The entropy for the initial node is:
 table(mydf$PlaysGolf)
   #PNo Yes 
   # 5   9 
-  ePlaysGolf <- -(9/14) * log(9/14, base = 2) - (5/14) * log(5/14, base = 2) # 0.940286
-
+  ePlaysGolf <- entropy(9/14) # 0.940286
+  
 # Let's calculate entropy for 2 attributes
 # We do it by taking the weighted average of the entropy for each branch. 
 # The weight is the size of this subset divided by the overall number of examples
@@ -52,9 +66,9 @@ table(mydf$PlaysGolf)
   # PlaysGolf   Overcast Rainy Sunny
   # No          0        3     2
   # Yes         4        2     3
-  eOvercast <- -(4/4) * log(4/4, base = 2) - (0/4) * log(0/4, base = 2) # NaN = 0
-  eRainy <- -(2/5) * log(2/5, base = 2) - (3/5) * log(3/5, base = 2) # 0.971
-  eSunny <- -(3/5) * log(3/5, base = 2) - (2/5) * log(2/5, base = 2) # 0.971
+  eOvercast <- entropy(4/4) # 0
+  eRainy <- entropy(2/5) # 0.971
+  eSunny <- entropy(3/5) # 0.971
   
     ePlayOutlook <- 4/14 * eOvercast + 5/14 * eRainy + 5/14 * eSunny #0.6935361
 
@@ -63,8 +77,8 @@ table(mydf$PlaysGolf)
   # PlaysGolf   False True
   # No          2     3
   # Yes         6     3
-  eWindF <- -(6/8) * log(6/8, base = 2) - (2/8) * log(2/8, base = 2) # 0.8112781
-  eWindT <- -(3/6) * log(3/6, base = 2) - (3/6) * log(3/6, base = 2) # 1
+  eWindF <- entropy(6/8) # 0.8112781
+  eWindT <- entropy(3/6) # 1
   
     ePlayWind <- 8/14 * eWindF + 6/14 * eWindT #0.8921589
 
@@ -74,11 +88,11 @@ table(mydf$PlaysGolf)
   # No        1   2    2
   # Yes       3   2    4
   
-  eCool <- -(3/4) * log(3/4, base = 2) - (1/4) * log(1/4, base = 2) # 0.8112781
-  eHot <- -(2/4) * log(2/4, base = 2) - (2/4) * log(2/4, base = 2) # 1
-  eMild <- -(4/6) * log(4/6, base = 2) - (2/6) * log(2/6, base = 2) # 0.9182958
+  eCool <- entropy(3/4) # 0.8112781
+  eHot <- entropy(2/4) # 1
+  eMild <- entropy(4/6) # 0.9182958
   
-    ePlayTemp <- 4/14 * eCool + 4/14 * eHot * 6/14 * eMild #0.3442381
+    ePlayTemp <- 4/14 * eCool + 4/14 * eHot + 6/14 * eMild #0.9110634
     
   # PlaysGolf - Humidity
   table(mydf$PlaysGolf, mydf$Humidity)
@@ -86,8 +100,8 @@ table(mydf$PlaysGolf)
   # No        4     1  
   # Yes       3     6
     
-    eHighHum <- -(3/7) * log(3/7, base = 2) - (4/7) * log(4/7, base = 2) # 0.9852281
-    eNormalHum <- -(6/7) * log(6/7, base = 2) - (1/7) * log(1/7, base = 2) # 0.5916728
+    eHighHum <- entropy(3/7) # 0.9852281
+    eNormalHum <- entropy(6/7) # 0.5916728
 
     ePlayHum <- 8/14 * eHighHum + 6/14 * eNormalHum #0.8165616
   
@@ -95,7 +109,7 @@ table(mydf$PlaysGolf)
     # Gain(T, X) = Entropy(T) - Entropy(T, X)
     ePlaysGolf - ePlayOutlook # 0.2467498
     ePlaysGolf - ePlayWind # 0.04812703
-    ePlaysGolf - ePlayTemp # 0.04812703
+    ePlaysGolf - ePlayTemp # 0.02922257
     ePlaysGolf - ePlayHum # 0.1237244
 
 # We now pick the attribute with the largest information gain: Outlook. 
@@ -125,6 +139,4 @@ GolfTree
 par(xpd = TRUE) #enable things to be drawn outside the plot region
 plot(GolfTree, compress = TRUE)
 text(GolfTree, use.n = TRUE)
-
-
 
